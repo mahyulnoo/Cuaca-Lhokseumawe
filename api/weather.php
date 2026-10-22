@@ -138,6 +138,6 @@ echo json_encode([
     'district_key' => $districtKey,
     'district_info' => $selected,
     'cached' => $fromCache,
-    'cache_time' => file_exists($cacheFile) ? date('Y-m-d H:i:s', filemtime($cacheFile)) : date('Y-m-d H:i:s'),
+    'cache_time' => ($activeCacheFile && file_exists($activeCacheFile)) ? date('Y-m-d H:i:s', filemtime($activeCacheFile)) : date('Y-m-d H:i:s'),
     'raw' => $data
 ]);

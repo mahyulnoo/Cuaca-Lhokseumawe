@@ -322,10 +322,13 @@ $activeDistrict = 'banda_sakti';
                 console.log('Fetching:', apiUrl);
 
                 const response = await fetch(apiUrl);
-                if (!response.ok) {
-                    throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
+                const rawText = await response.text();
+                let result;
+                try {
+                    result = JSON.parse(rawText);
+                } catch(e) {
+                    throw new Error('Respon bukan JSON: ' + rawText.replace(/<[^>]*>?/gm, '').trim().substring(0, 100));
                 }
-                const result = await response.json();
                 console.log('API Result:', result);
 
                 if (result.status === 'success' && result.raw) {
