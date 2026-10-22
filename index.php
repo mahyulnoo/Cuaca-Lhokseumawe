@@ -317,28 +317,29 @@ $activeDistrict = 'banda_sakti';
 
         async loadWeather(districtKey, callback = null) {
             try {
-                // Mendukung subfolder localhost/API/ maupun root domain Vercel
-                const apiUrl = window.location.pathname.endsWith('/') 
-                    ? `${window.location.pathname}api/weather.php?district=${districtKey}&t=${Date.now()}`
-                    : `${window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)}api/weather.php?district=${districtKey}&t=${Date.now()}`;
+                // Gunakan path relatif sederhana yang selalu valid baik di localhost maupun Vercel
+                const apiUrl = `api/weather.php?district=${districtKey}&t=${Date.now()}`;
+                console.log('Fetching:', apiUrl);
 
                 const response = await fetch(apiUrl);
                 if (!response.ok) {
-                    throw new Error('HTTP status ' + response.status);
+                    throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
                 }
                 const result = await response.json();
-                if (result.status === 'success') {
+                console.log('API Result:', result);
+
+                if (result.status === 'success' && result.raw) {
                     this.weatherData = result;
                     this.render(result);
                 } else {
-                    console.warn(result.message);
+                    throw new Error(result.message || 'Format data cuaca tidak valid');
                 }
             } catch (err) {
-                console.error('Fetch error:', err);
+                console.error('Weather load error:', err);
                 const curDesc = document.getElementById('curDesc');
                 const curDescEn = document.getElementById('curDescEn');
                 if (curDesc) curDesc.textContent = 'Server BMKG Sibuk';
-                if (curDescEn) curDescEn.textContent = 'Klik tombol Refresh untuk mencoba kembali';
+                if (curDescEn) curDescEn.textContent = (err.message || 'Klik tombol Refresh untuk mencoba kembali');
             } finally {
                 if (typeof callback === 'function') callback();
             }
