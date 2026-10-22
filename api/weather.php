@@ -55,20 +55,21 @@ if (!array_key_exists($districtKey, $districts)) {
 $selected = $districts[$districtKey];
 $adm4 = $selected['adm4'];
 
-// Direktori cache: gunakan /tmp jika di environment Vercel serverless, atau folder lokal
-$cacheDir = function_exists('sys_get_temp_dir') && getenv('VERCEL') ? sys_get_temp_dir() . '/weather_cache' : __DIR__ . '/../cache';
-if (!is_dir($cacheDir)) {
-    @mkdir($cacheDir, 0777, true);
+// Direktori cache: gunakan /tmp untuk writable di Vercel, dan bundle cache di __DIR__ . '/../cache'
+$bundleCacheFile = __DIR__ . '/../cache/weather_' . $districtKey . '.json';
+$writableCacheDir = function_exists('sys_get_temp_dir') && getenv('VERCEL') ? sys_get_temp_dir() . '/weather_cache' : __DIR__ . '/../cache';
+if (!is_dir($writableCacheDir)) {
+    @mkdir($writableCacheDir, 0777, true);
 }
-
-$cacheFile = $cacheDir . '/weather_' . $districtKey . '.json';
-$cacheLifetime = 900; // 15 menit cache
+$writableCacheFile = $writableCacheDir . '/weather_' . $districtKey . '.json';
+$cacheLifetime = 900; // 15 menit
 
 $data = null;
 $fromCache = false;
+$activeCacheFile = file_exists($writableCacheFile) ? $writableCacheFile : (file_exists($bundleCacheFile) ? $bundleCacheFile : null);
 
-if (file_exists($cacheFile) && (time() - filemtime($cacheFile) < $cacheLifetime)) {
-    $content = @file_get_contents($cacheFile);
+if ($activeCacheFile && (time() - filemtime($activeCacheFile) < $cacheLifetime)) {
+    $content = @file_get_contents($activeCacheFile);
     if ($content) {
         $data = json_decode($content, true);
         if ($data) {
@@ -79,27 +80,45 @@ if (file_exists($cacheFile) && (time() - filemtime($cacheFile) < $cacheLifetime)
 
 if (!$data) {
     $bmkgUrl = "https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=" . $adm4;
-    $context = stream_context_create([
-        'http' => [
-            'method' => 'GET',
-            'header' => "User-Agent: LhokseumaweWeatherApp/1.0 (BMKG Client PHP)\r\nAccept: application/json\r\n",
-            'timeout' => 10
-        ]
-    ]);
+    $response = null;
 
-    $response = @file_get_contents($bmkgUrl, false, $context);
+    if (function_exists('curl_init')) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $bmkgUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept: application/json, text/plain, */*",
+            "Accept-Language: id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7"
+        ]);
+        $response = curl_exec($ch);
+        curl_close($ch);
+    }
+
+    if (!$response) {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'header' => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\r\nAccept: application/json\r\n",
+                'timeout' => 6
+            ]
+        ]);
+        $response = @file_get_contents($bmkgUrl, false, $context);
+    }
 
     if ($response) {
         $parsed = json_decode($response, true);
         if ($parsed && !empty($parsed['data'])) {
             $data = $parsed;
-            @file_put_contents($cacheFile, $response);
+            @file_put_contents($writableCacheFile, $response);
         }
     }
 
-    // Jika gagal fetch live namun ada cache lama, gunakan cache cadangan
-    if (!$data && file_exists($cacheFile)) {
-        $content = @file_get_contents($cacheFile);
+    // Jika gagal mengambil data live (misal karena Geo-blocking server luar negeri oleh BMKG), gunakan fallback bundle cache
+    if (!$data && $activeCacheFile && file_exists($activeCacheFile)) {
+        $content = @file_get_contents($activeCacheFile);
         $data = json_decode($content, true);
         $fromCache = true;
     }

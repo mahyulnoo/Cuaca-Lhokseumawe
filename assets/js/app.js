@@ -69,6 +69,10 @@ const App = {
             }
         } catch (err) {
             console.error('Fetch error:', err);
+            const curDesc = document.getElementById('curDesc');
+            const curDescEn = document.getElementById('curDescEn');
+            if (curDesc) curDesc.textContent = 'Server BMKG Sibuk';
+            if (curDescEn) curDescEn.textContent = 'Klik tombol Refresh untuk mencoba kembali';
         } finally {
             if (typeof callback === 'function') callback();
         }
