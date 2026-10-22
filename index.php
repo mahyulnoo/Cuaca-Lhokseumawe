@@ -317,16 +317,21 @@ $activeDistrict = 'banda_sakti';
 
         async loadWeather(districtKey, callback = null) {
             try {
-                const response = await fetch(`api/weather.php?district=${districtKey}&t=${Date.now()}`);
+                // Mendukung subfolder localhost/API/ maupun root domain Vercel
+                const apiUrl = window.location.pathname.endsWith('/') 
+                    ? `${window.location.pathname}api/weather.php?district=${districtKey}&t=${Date.now()}`
+                    : `${window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1)}api/weather.php?district=${districtKey}&t=${Date.now()}`;
+
+                const response = await fetch(apiUrl);
                 if (!response.ok) {
-                    throw new Error('Gagal menghubungi API');
+                    throw new Error('HTTP status ' + response.status);
                 }
                 const result = await response.json();
                 if (result.status === 'success') {
                     this.weatherData = result;
                     this.render(result);
                 } else {
-                    alert(result.message || 'Gagal memuat cuaca.');
+                    console.warn(result.message);
                 }
             } catch (err) {
                 console.error('Fetch error:', err);
